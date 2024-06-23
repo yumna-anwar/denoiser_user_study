@@ -8,7 +8,7 @@ const db = new sqlite("data.db", { verbose: console.log });
 
 const PORT = process.env.PORT || 3001;
 const app = express();
-const { exec } = require('child_process');
+const { exec } = require("child_process");
 
 app.use(cors());
 
@@ -38,6 +38,11 @@ app.use(
   "/assets/stimulisentences_pairwise",
   express.static(path.join(__dirname, "assets/stimulisentences_pairwise"))
 );
+
+// heartbeat api
+app.get("/api/get-all-user", (req, res) => {
+  res.status(200).json({ success: true, message: "OK" });
+});
 
 app.get("/api/get-all-user", (req, res) => {
   const query = db.prepare("SELECT * FROM users");
@@ -81,7 +86,6 @@ app.get("/api/get-all-user-gain", (req, res) => {
     res.status(200).json({ success: false, message: "User not found" });
   }
 });
-
 
 app.post("/api/login", (req, res) => {
   const { UserName, Password } = req.body;
@@ -171,7 +175,6 @@ app.post("/api/register", (req, res) => {
     .json({ success: false, message: "Registration Not Complete" });
 });
 
-
 // ASSESTS/USERID/MODELNAME_SNR_SENTENCENAME.WAV
 app.get("/api/list-files", (req, res) => {
   const assetsFolder = path.join(__dirname, "assets/_stimulisentences"); // Replace 'assets' with your folder name
@@ -203,7 +206,10 @@ app.get("/api/list-files", (req, res) => {
 app.get("/api/list-files-user/:id", (req, res) => {
   const participantId = req.params.id;
   const keyword = "Combined_";
-  const assetsFolder = path.join(__dirname, `assets/stimulisentences_usertest/${participantId}`); // Replace 'assets' with your folder name
+  const assetsFolder = path.join(
+    __dirname,
+    `assets/stimulisentences_usertest/${participantId}`
+  ); // Replace 'assets' with your folder name
   const baseUrl = `${req.protocol}://${req.get("host")}`; // Construct the base URL
 
   fs.readdir(assetsFolder, (err, files) => {
@@ -215,8 +221,8 @@ app.get("/api/list-files-user/:id", (req, res) => {
 
       files.forEach((file) => {
         if (file.startsWith(keyword)) {
-        const fileUrl = `${baseUrl}/assets/stimulisentences_usertest/${participantId}/${file}`; // Construct the URL
-        fileData.push({ path: fileUrl, file });
+          const fileUrl = `${baseUrl}/assets/stimulisentences_usertest/${participantId}/${file}`; // Construct the URL
+          fileData.push({ path: fileUrl, file });
         }
       });
       const compareStrings = (a, b) => {
@@ -233,7 +239,10 @@ app.get("/api/list-files-user/:id", (req, res) => {
 });
 app.get("/api/list-files-userid/:id", (req, res) => {
   const participantId = req.params.id;
-  const assetsFolder = path.join(__dirname, `assets/stimulisentences_usertest/${participantId}`); // Replace 'assets' with your folder name
+  const assetsFolder = path.join(
+    __dirname,
+    `assets/stimulisentences_usertest/${participantId}`
+  ); // Replace 'assets' with your folder name
   const baseUrl = `${req.protocol}://${req.get("host")}`; // Construct the base URL
 
   fs.readdir(assetsFolder, (err, files) => {
@@ -250,82 +259,105 @@ app.get("/api/list-files-userid/:id", (req, res) => {
         fileData.push(file);
       });
       //const sortedData = fileData.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-      res.json({ success: true, message:"File reading Successful",fileData: fileData });
+      res.json({
+        success: true,
+        message: "File reading Successful",
+        fileData: fileData,
+      });
     }
   });
 });
 app.get("/api/list-files-pairwise", (req, res) => {
-  const basePath = path.join(__dirname, 'assets/stimulisentences_pairwise/');
+  const basePath = path.join(__dirname, "assets/stimulisentences_pairwise/");
   const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const folders = ["mod1", "mod2", "mod3", "mod4", "mod5","mod6"];
-    let filesByFolder = [];
-    let promises = [];
+  const folders = ["mod1", "mod2", "mod3", "mod4", "mod5", "mod6"];
+  let filesByFolder = [];
+  let promises = [];
 
-    folders.forEach(folder => {
-      const folderPath = path.join(basePath, folder);
-      // Reading each folder and pushing the promise into an array
-      promises.push(
-        fs.promises.readdir(folderPath).then(files => {
+  folders.forEach((folder) => {
+    const folderPath = path.join(basePath, folder);
+    // Reading each folder and pushing the promise into an array
+    promises.push(
+      fs.promises
+        .readdir(folderPath)
+        .then((files) => {
           // Filter and map the files to include the full path and folder name
-          return files.filter(file => file.endsWith('.wav')).map(file => ({
-            name: file,
-            path: `${baseUrl}/assets/stimulisentences_pairwise/${folder}/${file}`,
-            folder: folder
-          }));
-        }).catch(err => {
+          return files
+            .filter((file) => file.endsWith(".wav"))
+            .map((file) => ({
+              name: file,
+              path: `${baseUrl}/assets/stimulisentences_pairwise/${folder}/${file}`,
+              folder: folder,
+            }));
+        })
+        .catch((err) => {
           console.error(`Error reading files from folder: ${folder}`, err);
           return []; // Return an empty array in case of error to keep the structure
         })
-      );
-    });
+    );
+  });
 
-    // Resolve all promises and process files pairwise
-    Promise.all(promises).then(filesByFolder => {
+  // Resolve all promises and process files pairwise
+  Promise.all(promises)
+    .then((filesByFolder) => {
       let filePairs = [];
       const baseFolderFiles = filesByFolder[0]; // Assuming the first folder is the base for comparison
 
       // Generate all combinations of folder pairs
-    for (let i = 0; i < filesByFolder.length; i++) {
-      for (let j = i + 1; j < filesByFolder.length; j++) {
-        filesByFolder[i].forEach(file1 => {
-          const matchFile = filesByFolder[j].find(file2 => file2.name === file1.name);
-          if (matchFile) {
-            filePairs.push({
-              path1: file1.path,
-              path2: matchFile.path,
-              name1: file1.folder,
-              name2: matchFile.folder,
-              fileName: file1.name
-            });
-          }
-        });
+      for (let i = 0; i < filesByFolder.length; i++) {
+        for (let j = i + 1; j < filesByFolder.length; j++) {
+          filesByFolder[i].forEach((file1) => {
+            const matchFile = filesByFolder[j].find(
+              (file2) => file2.name === file1.name
+            );
+            if (matchFile) {
+              filePairs.push({
+                path1: file1.path,
+                path2: matchFile.path,
+                name1: file1.folder,
+                name2: matchFile.folder,
+                fileName: file1.name,
+              });
+            }
+          });
+        }
       }
-    }
 
       // Send the response with the pairs
       console.log(filePairs);
-      res.json({ success: true, message: "File pairs fetched successfully", filePairs: filePairs });
-    }).catch(error => {
+      res.json({
+        success: true,
+        message: "File pairs fetched successfully",
+        filePairs: filePairs,
+      });
+    })
+    .catch((error) => {
       console.error("Failed to read files pairwise", error);
-      res.status(500).json({ success: false, message: "Failed to read files pairwise" });
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to read files pairwise" });
     });
-
-  });
+});
 
 app.get("/api/list-directories", (req, res) => {
   const basePath = path.join(__dirname, `assets/stimulisentences_usertest/`); // Adjust path as needed
   fs.readdir(basePath, { withFileTypes: true }, (err, entries) => {
     if (err) {
       console.error(err);
-      return res.status(500).json({ success: false, message: "Error reading directory" });
+      return res
+        .status(500)
+        .json({ success: false, message: "Error reading directory" });
     }
     const directories = entries
-      .filter(entry => entry.isDirectory())
-      .map(dir => dir.name);
-    res.json({ success: true, message: "Directories fetched successfully", directories: directories });
+      .filter((entry) => entry.isDirectory())
+      .map((dir) => dir.name);
+    res.json({
+      success: true,
+      message: "Directories fetched successfully",
+      directories: directories,
+    });
   });
 });
-
 
 app.post("/api/add-user-study", (req, res) => {
   const { UserId, FileName, Rate, TimeTaken, Guid } = req.body;
@@ -356,7 +388,7 @@ app.post("/api/add-user-study", (req, res) => {
     Rate,
     Guid,
     new Date().toISOString(),
-    TimeTaken
+    TimeTaken,
   ]);
 
   if (info) {
@@ -366,7 +398,18 @@ app.post("/api/add-user-study", (req, res) => {
 });
 
 app.post("/api/add-user-study-pairwise", (req, res) => {
-  const { UserId, FileName1,FileName2, Rate, TimeTaken, ReasonslessAnnoying, ReasonslessEffortful, ReasonsmoreNatural, ReasonsbetterQuality, Guid } = req.body;
+  const {
+    UserId,
+    FileName1,
+    FileName2,
+    Rate,
+    TimeTaken,
+    ReasonslessAnnoying,
+    ReasonslessEffortful,
+    ReasonsmoreNatural,
+    ReasonsbetterQuality,
+    Guid,
+  } = req.body;
 
   if (!UserId || !FileName1 || !FileName2 || !Rate || !Guid) {
     return res.status(200).json({
@@ -399,8 +442,7 @@ app.post("/api/add-user-study-pairwise", (req, res) => {
     ReasonslessAnnoying,
     ReasonslessEffortful,
     ReasonsmoreNatural,
-    ReasonsbetterQuality
-
+    ReasonsbetterQuality,
   ]);
 
   if (info) {
@@ -509,7 +551,10 @@ app.post("/api/add-filter-A", (req, res) => {
     LHz3000,
     LHz4000,
     LHz6000,
-    LHz8000, Volume, Gaintable} = req.body;
+    LHz8000,
+    Volume,
+    Gaintable,
+  } = req.body;
 
   if (!UserId || !Step || !Volume || !Gaintable) {
     return res.status(200).json({
@@ -559,7 +604,9 @@ app.post("/api/add-filter-A", (req, res) => {
   if (info) {
     return res.status(200).json({ success: true, message: "Gain Table Saved" });
   }
-  return res.status(200).json({ success: false, message: "Gain Table Not Saved Not" });
+  return res
+    .status(200)
+    .json({ success: false, message: "Gain Table Not Saved Not" });
 });
 
 app.post("/api/add-filter-B", (req, res) => {
@@ -581,7 +628,10 @@ app.post("/api/add-filter-B", (req, res) => {
     LHz3000,
     LHz4000,
     LHz6000,
-    LHz8000, Volume, Gaintable} = req.body;
+    LHz8000,
+    Volume,
+    Gaintable,
+  } = req.body;
 
   if (!UserId || !Step || !Volume || !Gaintable) {
     return res.status(200).json({
@@ -631,7 +681,9 @@ app.post("/api/add-filter-B", (req, res) => {
   if (info) {
     return res.status(200).json({ success: true, message: "Gain Table Saved" });
   }
-  return res.status(200).json({ success: false, message: "Gain Table Not Saved Not" });
+  return res
+    .status(200)
+    .json({ success: false, message: "Gain Table Not Saved Not" });
 });
 
 app.post("/api/add-filter-C", (req, res) => {
@@ -653,7 +705,10 @@ app.post("/api/add-filter-C", (req, res) => {
     LHz3000,
     LHz4000,
     LHz6000,
-    LHz8000, Volume, Gaintable} = req.body;
+    LHz8000,
+    Volume,
+    Gaintable,
+  } = req.body;
 
   if (!UserId || !Step || !Volume || !Gaintable) {
     return res.status(200).json({
@@ -703,7 +758,9 @@ app.post("/api/add-filter-C", (req, res) => {
   if (info) {
     return res.status(200).json({ success: true, message: "Gain Table Saved" });
   }
-  return res.status(200).json({ success: false, message: "Gain Table Not Saved Not" });
+  return res
+    .status(200)
+    .json({ success: false, message: "Gain Table Not Saved Not" });
 });
 
 app.post("/api/add-user-gain", (req, res) => {
@@ -726,7 +783,10 @@ app.post("/api/add-user-gain", (req, res) => {
     LHz3000,
     LHz4000,
     LHz6000,
-    LHz8000, Volume, Gaintable} = req.body;
+    LHz8000,
+    Volume,
+    Gaintable,
+  } = req.body;
 
   if (!UserId || !Step || !Volume || !Gaintable) {
     return res.status(200).json({
@@ -735,7 +795,9 @@ app.post("/api/add-user-gain", (req, res) => {
     });
   }
   // Check for existing record with the given ParticipantID
-  const checkParticipant = db.prepare("SELECT COUNT(*) as count FROM UserGain WHERE ParticipantID = ?");
+  const checkParticipant = db.prepare(
+    "SELECT COUNT(*) as count FROM UserGain WHERE ParticipantID = ?"
+  );
   const existingRecord = checkParticipant.get(ParticipantID);
   if (existingRecord.count > 0) {
     // Update existing record
@@ -770,161 +832,250 @@ app.post("/api/add-user-gain", (req, res) => {
       ParticipantID
     );
   } else {
-      // Insert new record
-      let statement = db.prepare(
-        `INSERT INTO UserGain (UserId, ParticipantID, Step, R200hz, R500hz, R1000hz, R2000hz, R3000hz, R4000hz, R6000hz, R8000hz, L200hz, L500hz, L1000hz, L2000hz, L3000hz, L4000hz, L6000hz, L8000hz, Volume, Gtable, Date)
+    // Insert new record
+    let statement = db.prepare(
+      `INSERT INTO UserGain (UserId, ParticipantID, Step, R200hz, R500hz, R1000hz, R2000hz, R3000hz, R4000hz, R6000hz, R8000hz, L200hz, L500hz, L1000hz, L2000hz, L3000hz, L4000hz, L6000hz, L8000hz, Volume, Gtable, Date)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      );
+    );
 
-      let info = statement.run(
-        UserId,
-        ParticipantID,
-        Step,
-        RHz200,
-        RHz500,
-        RHz1000,
-        RHz2000,
-        RHz3000,
-        RHz4000,
-        RHz6000,
-        RHz8000,
-        LHz200,
-        LHz500,
-        LHz1000,
-        LHz2000,
-        LHz3000,
-        LHz4000,
-        LHz6000,
-        LHz8000,
-        Volume,
-        Gaintable,
-        new Date().toISOString()
-      );
-    }
-    // Simplify response for brevity, check actual operation success in practice
-  return res.status(200).json({ success: true, message: "Operation completed successfully." });
-
+    let info = statement.run(
+      UserId,
+      ParticipantID,
+      Step,
+      RHz200,
+      RHz500,
+      RHz1000,
+      RHz2000,
+      RHz3000,
+      RHz4000,
+      RHz6000,
+      RHz8000,
+      LHz200,
+      LHz500,
+      LHz1000,
+      LHz2000,
+      LHz3000,
+      LHz4000,
+      LHz6000,
+      LHz8000,
+      Volume,
+      Gaintable,
+      new Date().toISOString()
+    );
+  }
+  // Simplify response for brevity, check actual operation success in practice
+  return res
+    .status(200)
+    .json({ success: true, message: "Operation completed successfully." });
 });
 
-app.post('/api/run-filterA-test', (req, res) => {
+app.post("/api/run-filterA-test", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
-  const {mhagainparam} = req.body;
+  const { mhagainparam } = req.body;
   const scriptPath = path.join(__dirname, "/assets/MHAconfigs/Test_FilterA.sh");
-  const sourceAudioPath = path.join(__dirname, "/assets/test_sentence/stereo_ISTS.wav");
-  const destAudioPath = path.join(__dirname, "/assets/test_sentence/filterA-test/stereo_ISTS.wav");
-  if (!mhagainparam || typeof mhagainparam !== 'string') {
-    return res.status(400).send({ message: 'Invalid parameter' });
+  const sourceAudioPath = path.join(
+    __dirname,
+    "/assets/test_sentence/stereo_ISTS.wav"
+  );
+  const destAudioPath = path.join(
+    __dirname,
+    "/assets/test_sentence/filterA-test/stereo_ISTS.wav"
+  );
+  if (!mhagainparam || typeof mhagainparam !== "string") {
+    return res.status(400).send({ message: "Invalid parameter" });
   }
   const mhagainparamWithQuotes = `'${mhagainparam}'`;
-  console.log(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`);
-  exec(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`);
-      return res.status(500).send({ success: false, message: 'Script execution failed', error });
+  console.log(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`
+  );
+  exec(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`,
+    (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error}`);
+        return res
+          .status(500)
+          .send({ success: false, message: "Script execution failed", error });
+      }
+      console.log(`stdout: ${stdout}`);
+      console.error(`stderr: ${stderr}`);
+      res.send({
+        success: true,
+        message: "Script A executed successfully",
+        stdout,
+        stderr,
+      });
     }
-    console.log(`stdout: ${stdout}`);
-    console.error(`stderr: ${stderr}`);
-    res.send({ success: true, message: 'Script A executed successfully', stdout, stderr });
-  });
+  );
 });
-app.post('/api/run-filterB-test', (req, res) => {
+app.post("/api/run-filterB-test", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
-  const {mhagainparam} = req.body;
+  const { mhagainparam } = req.body;
   const scriptPath = path.join(__dirname, "/assets/MHAconfigs/Test_FilterB.sh");
-  const sourceAudioPath = path.join(__dirname, "/assets/test_sentence/stereo_Pink_Noise.wav");
-  const destAudioPath = path.join(__dirname, "/assets/test_sentence/filterB-test/stereo_Pink_Noise.wav");
-  if (!mhagainparam || typeof mhagainparam !== 'string') {
-    return res.status(400).send({ message: 'Invalid parameter' });
+  const sourceAudioPath = path.join(
+    __dirname,
+    "/assets/test_sentence/stereo_Pink_Noise.wav"
+  );
+  const destAudioPath = path.join(
+    __dirname,
+    "/assets/test_sentence/filterB-test/stereo_Pink_Noise.wav"
+  );
+  if (!mhagainparam || typeof mhagainparam !== "string") {
+    return res.status(400).send({ message: "Invalid parameter" });
   }
   const mhagainparamWithQuotes = `'${mhagainparam}'`;
-  console.log(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`);
-  exec(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`);
-      return res.status(500).send({ success: false, message: 'Script execution failed', error });
+  console.log(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`
+  );
+  exec(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`,
+    (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error}`);
+        return res
+          .status(500)
+          .send({ success: false, message: "Script execution failed", error });
+      }
+      console.log(`stdout: ${stdout}`);
+      console.error(`stderr: ${stderr}`);
+      res.send({
+        success: true,
+        message: "Script B executed successfully",
+        stdout,
+        stderr,
+      });
     }
-    console.log(`stdout: ${stdout}`);
-    console.error(`stderr: ${stderr}`);
-    res.send({ success: true, message: 'Script B executed successfully', stdout, stderr });
-  });
+  );
 });
-app.post('/api/run-filterC-test', (req, res) => {
+app.post("/api/run-filterC-test", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
-  const {mhagainparam} = req.body;
+  const { mhagainparam } = req.body;
   const scriptPath = path.join(__dirname, "/assets/MHAconfigs/Test_FilterC.sh");
-  const sourceAudioPath = path.join(__dirname, "/assets/test_sentence/stereo_Pink_Noise.wav");
-  const destAudioPath = path.join(__dirname, "/assets/test_sentence/filterC-test/stereo_Pink_Noise.wav");
-  if (!mhagainparam || typeof mhagainparam !== 'string') {
-    return res.status(400).send({ message: 'Invalid parameter' });
+  const sourceAudioPath = path.join(
+    __dirname,
+    "/assets/test_sentence/stereo_Pink_Noise.wav"
+  );
+  const destAudioPath = path.join(
+    __dirname,
+    "/assets/test_sentence/filterC-test/stereo_Pink_Noise.wav"
+  );
+  if (!mhagainparam || typeof mhagainparam !== "string") {
+    return res.status(400).send({ message: "Invalid parameter" });
   }
   const mhagainparamWithQuotes = `'${mhagainparam}'`;
-  console.log(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`);
-  exec(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`);
-      return res.status(500).send({ success: false, message: 'Script execution failed', error });
+  console.log(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`
+  );
+  exec(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes}`,
+    (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error}`);
+        return res
+          .status(500)
+          .send({ success: false, message: "Script execution failed", error });
+      }
+      console.log(`stdout: ${stdout}`);
+      console.error(`stderr: ${stderr}`);
+      res.send({
+        success: true,
+        message: "Script C executed successfully",
+        stdout,
+        stderr,
+      });
     }
-    console.log(`stdout: ${stdout}`);
-    console.error(`stderr: ${stderr}`);
-    res.send({ success: true, message: 'Script C executed successfully', stdout, stderr });
-  });
+  );
 });
 
-app.post('/api/run-userGain-test', (req, res) => {
+app.post("/api/run-userGain-test", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
-  const {mhagainparam, filterAparam, filterBparam, filterCparam} = req.body;
-  const scriptPath = path.join(__dirname, "/assets/MHAconfigs/Run_all.sh")
+  const { mhagainparam, filterAparam, filterBparam, filterCparam } = req.body;
+  const scriptPath = path.join(__dirname, "/assets/MHAconfigs/Run_all.sh");
   const sourceAudioPath = path.join(__dirname, "/assets/test_sentence");
-  const destAudioPath = path.join(__dirname, "/assets/test_sentence/usergain-test");
+  const destAudioPath = path.join(
+    __dirname,
+    "/assets/test_sentence/usergain-test"
+  );
   const mhagainparamWithQuotes = `'${mhagainparam}'`;
   const filterAparamWithQuotes = `'${filterAparam}'`;
   const filterBparamWithQuotes = `'${filterBparam}'`;
   const filterCparamWithQuotes = `'${filterCparam}'`;
 
-  exec(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes} ${filterAparamWithQuotes} ${filterBparamWithQuotes} ${filterCparamWithQuotes} ${0}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`);
-      return res.status(500).send({ success: false, message: 'Script execution failed', error });
+  exec(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes} ${filterAparamWithQuotes} ${filterBparamWithQuotes} ${filterCparamWithQuotes} ${0}`,
+    (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error}`);
+        return res
+          .status(500)
+          .send({ success: false, message: "Script execution failed", error });
+      }
+      console.log(`stdout: ${stdout}`);
+      console.error(`stderr: ${stderr}`);
+      res.send({
+        success: true,
+        message: "Script user gain executed successfully",
+        stdout,
+        stderr,
+      });
     }
-    console.log(`stdout: ${stdout}`);
-    console.error(`stderr: ${stderr}`);
-    res.send({ success: true, message: 'Script user gain executed successfully', stdout, stderr });
-  });
-    });
+  );
+});
 
-app.post('/api/run-userGain-All', (req, res) => {
+app.post("/api/run-userGain-All", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
-  const {mhagainparam, filterAparam, filterBparam, filterCparam, latency, participantId} = req.body;
-  const scriptPath = path.join(__dirname, "/assets/MHAconfigs/Run_all.sh")
+  const {
+    mhagainparam,
+    filterAparam,
+    filterBparam,
+    filterCparam,
+    latency,
+    participantId,
+  } = req.body;
+  const scriptPath = path.join(__dirname, "/assets/MHAconfigs/Run_all.sh");
   const sourceAudioPath = path.join(__dirname, "/assets/stimulisentences");
-  const destAudioPath = path.join(__dirname, `/assets/stimulisentences_usertest/${participantId}`);
+  const destAudioPath = path.join(
+    __dirname,
+    `/assets/stimulisentences_usertest/${participantId}`
+  );
   const mhagainparamWithQuotes = `'${mhagainparam}'`;
   const filterAparamWithQuotes = `'${filterAparam}'`;
   const filterBparamWithQuotes = `'${filterBparam}'`;
   const filterCparamWithQuotes = `'${filterCparam}'`;
 
-  exec(`${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes} ${filterAparamWithQuotes} ${filterBparamWithQuotes} ${filterCparamWithQuotes} ${latency}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`);
-      return res.status(500).send({ success: false, message: 'Script execution failed', error });
+  exec(
+    `${scriptPath} ${sourceAudioPath} ${destAudioPath} ${mhagainparamWithQuotes} ${filterAparamWithQuotes} ${filterBparamWithQuotes} ${filterCparamWithQuotes} ${latency}`,
+    (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error}`);
+        return res
+          .status(500)
+          .send({ success: false, message: "Script execution failed", error });
+      }
+      console.log(`stdout: ${stdout}`);
+      console.error(`stderr: ${stderr}`);
+      res.send({
+        success: true,
+        message: "Script run all executed successfully",
+        stdout,
+        stderr,
+      });
     }
-    console.log(`stdout: ${stdout}`);
-    console.error(`stderr: ${stderr}`);
-    res.send({ success: true, message: 'Script run all executed successfully', stdout, stderr });
-  });
-    });
-
+  );
+});
 
 async function runScript(scriptPath, sourcePath, destPath, param) {
   try {
-    const { stdout, stderr } = await exec(`${scriptPath} ${sourcePath} ${destPath} ${param}`);
+    const { stdout, stderr } = await exec(
+      `${scriptPath} ${sourcePath} ${destPath} ${param}`
+    );
     console.log(stdout);
     if (stderr) {
       console.error(stderr);
     }
   } catch (error) {
     console.error(`exec error: ${error}`);
-    throw new Error('Script execution failed');
+    throw new Error("Script execution failed");
   }
 }
 
